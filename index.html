@@ -1,0 +1,774 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MUG RUN</title>
+  <style>
+    :root{ --ink:#eaf0ff; --muted:#a7b3d7; }
+    html,body{height:100%; margin:0}
+    body{
+      background: radial-gradient(1100px 650px at 50% 20%, #1a2f66 0%, #0b1228 55%, #070a16 100%);
+      color:var(--ink);
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      display:flex; align-items:center; justify-content:center;
+      padding:16px;
+    }
+    .wrap{width:min(1100px,100%); display:grid; grid-template-columns:1fr 320px; gap:14px;}
+    @media (max-width: 980px){ .wrap{grid-template-columns:1fr;} }
+    .card{
+      border:1px solid rgba(255,255,255,0.12);
+      border-radius:16px;
+      background:linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+      box-shadow: 0 18px 50px rgba(0,0,0,0.35);
+      overflow:hidden;
+    }
+    .topbar{
+      display:flex; align-items:center; justify-content:space-between;
+      padding:12px 14px;
+      border-bottom:1px solid rgba(255,255,255,0.10);
+      background:rgba(0,0,0,0.12);
+      gap:10px; flex-wrap:wrap;
+      font-variant-numeric: tabular-nums;
+    }
+    .brand{display:flex; align-items:baseline; gap:10px;}
+    .brand .name{font-weight:900; text-transform:uppercase; letter-spacing:0.6px; font-size:14px;}
+    .brand .sub{font-size:12px; color:var(--muted);}
+    .stats{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+    .pill{
+      padding:6px 10px; border-radius:999px;
+      background:rgba(255,255,255,0.07);
+      border:1px solid rgba(255,255,255,0.12);
+      font-size:12px; display:flex; gap:8px; align-items:center;
+    }
+    .pill b{color:#fff}
+    canvas{display:block; width:100%; height:auto; image-rendering: pixelated; background:transparent;}
+    .side{padding:14px;}
+    .side h2{margin:0 0 10px; font-size:14px; letter-spacing:0.4px; text-transform:uppercase;}
+    .panel{
+      background:rgba(0,0,0,0.14);
+      border:1px solid rgba(255,255,255,0.10);
+      border-radius:14px;
+      padding:12px;
+      color:rgba(234,240,255,0.88);
+      font-size:13px; line-height:1.45;
+    }
+    .keys{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:10px 0 12px;}
+    .keycap{
+      text-align:center; padding:10px 0; border-radius:12px;
+      background:rgba(122,167,255,0.10);
+      border:1px solid rgba(122,167,255,0.28);
+      color:rgba(234,240,255,0.95);
+      font-weight:800; user-select:none;
+    }
+    .btnrow{display:flex; gap:10px; flex-wrap:wrap;}
+    button{
+      cursor:pointer; border:none; border-radius:12px;
+      padding:10px 12px; font-weight:800;
+      background:linear-gradient(180deg, rgba(122,167,255,0.95), rgba(122,167,255,0.75));
+      color:#071028; box-shadow: 0 12px 22px rgba(0,0,0,0.25);
+    }
+    button.secondary{
+      background:rgba(255,255,255,0.08);
+      border:1px solid rgba(255,255,255,0.14);
+      color:rgba(234,240,255,0.95);
+      box-shadow:none;
+    }
+    .small{font-size:12px; color:var(--muted); margin-top:10px;}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="topbar">
+        <div class="brand">
+          <div class="name">MUG RUN</div>
+          <div class="sub">8-bit hall platformer</div>
+        </div>
+        <div class="stats">
+          <div class="pill">Candy <b id="candy">0</b></div>
+          <div class="pill">Lives <b id="lives">3</b></div>
+          <div class="pill">Best <b id="best">0</b></div>
+          <div class="pill">State <b id="state">TITLE</b></div>
+        </div>
+      </div>
+      <canvas id="c" width="960" height="540"></canvas>
+    </div>
+
+    <div class="card side">
+      <h2>Controls</h2>
+      <div class="panel">
+        <b>Move:</b> ← / →<br/>
+        <b>Jump:</b> Space<br/>
+        <b>Double Jump:</b> Space again mid-air<br/>
+        <b>Wall Jump:</b> Touch a wall mid-air + Space<br/>
+        <b>Start/Restart:</b> Enter<br/><br/>
+        Stomp students. Collect candy. Stomp Henry (orange mug) to win.
+      </div>
+
+      <div class="keys">
+        <div class="keycap">←</div>
+        <div class="keycap">SPACE</div>
+        <div class="keycap">→</div>
+        <div class="keycap">ENTER</div>
+        <div class="keycap">WALL</div>
+        <div class="keycap">JUMP</div>
+      </div>
+
+      <div class="btnrow">
+        <button id="startBtn">Start</button>
+        <button id="restartBtn" class="secondary">Restart</button>
+      </div>
+
+      <div class="small">Click the game once to focus keyboard.</div>
+    </div>
+  </div>
+
+<script>
+window.addEventListener("load", () => {
+  const canvas = document.getElementById("c");
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+
+  const candyEl = document.getElementById("candy");
+  const livesEl = document.getElementById("lives");
+  const bestEl  = document.getElementById("best");
+  const stateEl = document.getElementById("state");
+  const startBtn = document.getElementById("startBtn");
+  const restartBtn = document.getElementById("restartBtn");
+
+  const W = canvas.width, H = canvas.height;
+
+  // Pixel buffer
+  const SCALE = 3;
+  const PW = Math.floor(W / SCALE);
+  const PH = Math.floor(H / SCALE);
+  const buf = document.createElement("canvas");
+  buf.width = PW; buf.height = PH;
+  const g = buf.getContext("2d");
+  g.imageSmoothingEnabled = false;
+
+  // Error overlay if anything blows up
+  function showError(err){
+    console.error(err);
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = "#fff";
+    ctx.font = "16px system-ui";
+    ctx.fillText("MUG RUN crashed. Open DevTools Console for details.", 20, 40);
+    ctx.font = "12px system-ui";
+    const msg = String(err && err.message ? err.message : err);
+    ctx.fillText(msg.slice(0,110), 20, 65);
+  }
+  window.addEventListener("error", (e)=>showError(e.error || e.message));
+
+  const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+  const pxr = (c,x,y,w,h,col)=>{ c.fillStyle=col; c.fillRect(x|0,y|0,w|0,h|0); };
+
+  const PAL = {
+    outline:"#1b1f2a", ink:"#0b1020",
+    skin:"#f2caa7", skin2:"#e2b28f",
+    hairBlack:"#1a1b22", hairBrown:"#3a2a1d",
+    coat:"#1b1f2a", coatHi:"#2a3042",
+    fedora:"#11141c", fedoraBand:"#2d3246",
+    shirtBlue:"#2f7bd0", pantsDark:"#2c2f3d",
+    shoe:"#0c0f16",
+    mug:"#ff8c2a", mugHi:"#ffd3a6",
+    candyA:"#ff4d6d", candyB:"#7aa7ff", candyC:"#3af59a",
+  };
+
+  function makeSprite(frames, drawFn){
+    const out=[];
+    for(let i=0;i<frames;i++){
+      const c=document.createElement("canvas");
+      c.width=32; c.height=32;
+      const s=c.getContext("2d"); s.imageSmoothingEnabled=false;
+      drawFn(s,i);
+      out.push(c);
+    }
+    return out;
+  }
+
+  const SPR_DET = makeSprite(6, (s,f)=>{
+    const step=[0,1,0,2,0,1][f], arm=[0,1,0,-1,0,1][f], bob=[0,0,1,0,0,0][f];
+    const ox=6, oy=4+bob;
+    pxr(s,ox+8,oy+2,14,14,PAL.outline); pxr(s,ox+9,oy+3,12,12,PAL.skin);
+    pxr(s,ox+9,oy+3,12,5,PAL.hairBrown);
+    pxr(s,ox+6,oy+1,18,4,PAL.outline); pxr(s,ox+7,oy+2,16,2,PAL.fedora);
+    pxr(s,ox+9,oy+0,12,4,PAL.fedora); pxr(s,ox+10,oy+3,10,1,PAL.fedoraBand);
+    pxr(s,ox+11,oy+8,2,2,PAL.ink); pxr(s,ox+17,oy+8,2,2,PAL.ink);
+    pxr(s,ox+13,oy+12,4,1,"#7a3c2c");
+    pxr(s,ox+9,oy+16,12,12,PAL.outline); pxr(s,ox+10,oy+17,10,10,PAL.coat);
+    pxr(s,ox+12,oy+18,2,8,PAL.coatHi); pxr(s,ox+16,oy+18,2,8,PAL.coatHi);
+    pxr(s,ox+6,oy+17+arm,3,8,PAL.outline); pxr(s,ox+7,oy+18+arm,1,6,PAL.coat); pxr(s,ox+6,oy+24+arm,3,2,PAL.skin2);
+    pxr(s,ox+21,oy+17-arm,3,8,PAL.outline); pxr(s,ox+22,oy+18-arm,1,6,PAL.coat); pxr(s,ox+21,oy+24-arm,3,2,PAL.skin2);
+    pxr(s,ox+11,oy+28,5,4,PAL.outline); pxr(s,ox+12,oy+29,3,3,"#1d2436");
+    pxr(s,ox+15,oy+28,5,4,PAL.outline); pxr(s,ox+16,oy+29,3,3,"#1d2436");
+    pxr(s,ox+10+step,oy+31,6,1,PAL.shoe); pxr(s,ox+15-step,oy+31,6,1,PAL.shoe);
+  });
+
+  const SPR_STU = makeSprite(6, (s,f)=>{
+    const step=[0,1,0,2,0,1][f], bob=[0,0,1,0,0,0][f];
+    const ox=6, oy=5+bob;
+    pxr(s,ox+8,oy+3,14,14,PAL.outline); pxr(s,ox+9,oy+4,12,12,PAL.skin);
+    pxr(s,ox+9,oy+4,12,5,PAL.hairBlack);
+    pxr(s,ox+11,oy+9,2,2,PAL.ink); pxr(s,ox+17,oy+9,2,2,PAL.ink);
+    pxr(s,ox+13,oy+13,4,1,"#7a3c2c");
+    pxr(s,ox+9,oy+17,12,10,PAL.outline); pxr(s,ox+10,oy+18,10,8,"#d24a5b");
+    pxr(s,ox+6,oy+18,3,7,PAL.outline); pxr(s,ox+7,oy+19,1,5,"#d24a5b"); pxr(s,ox+6,oy+24,3,2,PAL.skin2);
+    pxr(s,ox+21,oy+18,3,7,PAL.outline); pxr(s,ox+22,oy+19,1,5,"#d24a5b"); pxr(s,ox+21,oy+24,3,2,PAL.skin2);
+    pxr(s,ox+11,oy+27,5,5,PAL.outline); pxr(s,ox+12,oy+28,3,4,PAL.pantsDark);
+    pxr(s,ox+15,oy+27,5,5,PAL.outline); pxr(s,ox+16,oy+28,3,4,PAL.pantsDark);
+    pxr(s,ox+10+step,oy+31,6,1,PAL.shoe); pxr(s,ox+15-step,oy+31,6,1,PAL.shoe);
+  });
+
+  const SPR_HEN = makeSprite(6, (s,f)=>{
+    const step=[0,1,0,2,0,1][f], arm=[0,1,0,-1,0,1][f], bob=[0,0,1,0,0,0][f];
+    const ox=6, oy=4+bob;
+    pxr(s,ox+8,oy+2,14,14,PAL.outline); pxr(s,ox+9,oy+3,12,12,PAL.skin);
+    pxr(s,ox+9,oy+3,12,5,PAL.hairBlack);
+    pxr(s,ox+11,oy+8,2,2,PAL.ink); pxr(s,ox+17,oy+8,2,2,PAL.ink);
+    pxr(s,ox+13,oy+12,5,1,"#7a3c2c");
+    pxr(s,ox+9,oy+16,12,12,PAL.outline); pxr(s,ox+10,oy+17,10,10,PAL.shirtBlue);
+    pxr(s,ox+6,oy+17+arm,3,8,PAL.outline); pxr(s,ox+7,oy+18+arm,1,6,PAL.shirtBlue); pxr(s,ox+6,oy+24+arm,3,2,PAL.skin2);
+    pxr(s,ox+21,oy+17-arm,3,8,PAL.outline); pxr(s,ox+22,oy+18-arm,1,6,PAL.shirtBlue); pxr(s,ox+21,oy+24-arm,3,2,PAL.skin2);
+    const mx=ox+24, my=oy+23-arm;
+    pxr(s,mx,my,6,6,PAL.outline); pxr(s,mx+1,my+1,4,4,PAL.mug); pxr(s,mx+1,my+1,2,2,PAL.mugHi);
+    pxr(s,mx+5,my+2,2,3,PAL.outline); pxr(s,mx+6,my+3,1,1,PAL.mug);
+    pxr(s,ox+11,oy+28,5,4,PAL.outline); pxr(s,ox+12,oy+29,3,3,PAL.pantsDark);
+    pxr(s,ox+15,oy+28,5,4,PAL.outline); pxr(s,ox+16,oy+29,3,3,PAL.pantsDark);
+    pxr(s,ox+10+step,oy+31,6,1,PAL.shoe); pxr(s,ox+15-step,oy+31,6,1,PAL.shoe);
+  });
+
+  function drawSprite(frames, x, y, frame, flip=false, flicker=false){
+    const img = frames[frame % frames.length];
+    g.save();
+    g.translate(x|0, y|0);
+    if(flip){ g.scale(-1,1); g.translate(-img.width, 0); }
+    g.drawImage(img, 0, 0);
+    if(flicker){
+      g.globalAlpha = 0.35;
+      g.fillStyle = "rgba(255,255,255,0.8)";
+      g.fillRect(0,0,img.width,img.height);
+    }
+    g.restore();
+  }
+
+  function drawCandyIcon(px, py, phase){
+    const bob = Math.sin(phase) * 1.1;
+    const x = px|0, y = (py + bob)|0;
+    const m = (Math.floor(phase*10) % 3);
+    const col = m===0 ? PAL.candyA : m===1 ? PAL.candyB : PAL.candyC;
+    pxr(g, x-7, y-3, 3, 7, PAL.outline); pxr(g, x-6, y-2, 1, 5, col);
+    pxr(g, x+4, y-3, 3, 7, PAL.outline); pxr(g, x+5, y-2, 1, 5, col);
+    pxr(g, x-5, y-6, 10, 12, PAL.outline);
+    pxr(g, x-4, y-5, 8, 10, col);
+    pxr(g, x-3, y-4, 2, 2, "rgba(255,255,255,0.35)");
+  }
+
+  // GAME CONSTANTS
+  const TILE = 16;
+  const GRAV = 0.34, MOVE_ACC = 0.28, MOVE_MAX = 1.75, FRICTION = 0.82;
+  const JUMP_V = -5.3, DOUBLE_JUMP_V = -4.9, COYOTE = 8, STOMP_BOUNCE = -4.4;
+  const WALL_JUMP_VY = -5.1, WALL_JUMP_VX = 1.9, WALL_STICK_FRAMES = 8;
+
+  const State = { TITLE:"TITLE", RUN:"RUN", WIN:"WIN", GAMEOVER:"GAMEOVER" };
+  let state = State.TITLE;
+  const setState = (s)=>{ state=s; stateEl.textContent=s; };
+
+  let candy = 0, lives = 3;
+  let best = Number(localStorage.getItem("mugrun_best_candy") || 0);
+  bestEl.textContent = String(best);
+
+  // LEVEL
+  const LEVEL_W = 260, LEVEL_H = 20;
+  const tiles = new Uint8Array(LEVEL_W * LEVEL_H);
+  const idx = (x,y)=>y*LEVEL_W+x;
+  const getTile = (x,y)=> (x<0||y<0||x>=LEVEL_W||y>=LEVEL_H) ? 1 : tiles[idx(x,y)];
+  const setTile = (x,y,v)=>{ if(x>=0&&y>=0&&x<LEVEL_W&&y<LEVEL_H) tiles[idx(x,y)] = v; };
+  const isSolid = (v)=>v===1;
+
+  const player = { 
+    x:0,y:0,w:12,h:16,
+    vx:0,vy:0,
+    onGround:false,
+    coyote:0,
+    jumpsUsed:0,
+    facing:1,
+    anim:0,
+    hurtT:0,
+    wallDir: 0,
+    wallStick: 0
+  };
+
+  const enemies = [];
+  const candies = [];
+  const henry = { x:0,y:0,w:14,h:18,alive:true,anim:0,mugBob:0 };
+  const cam = { x:0,y:0 };
+
+  const AABB = (ax,ay,aw,ah,bx,by,bw,bh)=> ax<bx+bw && ax+aw>bx && ay<by+bh && ay+ah>by;
+
+  // Input
+  const keys = { left:false, right:false };
+  let jumpQueued = false;
+
+  function buildLevel(){
+    tiles.fill(0);
+    const groundY = LEVEL_H - 3;
+
+    // ground
+    for(let x=0;x<LEVEL_W;x++) for(let y=groundY;y<LEVEL_H;y++) setTile(x,y,1);
+
+    const gap=(x0,w)=>{ for(let x=x0;x<x0+w;x++) for(let y=groundY;y<LEVEL_H;y++) setTile(x,y,0); };
+    const platform=(x0,y0,w)=>{ for(let x=x0;x<x0+w;x++) setTile(x,y0,1); };
+
+    gap(30,4); gap(58,5); gap(92,4); gap(128,6); gap(176,5);
+
+    // platforms (higher tiers)
+    platform(14, groundY-4, 8);
+    platform(24, groundY-7, 6);
+    platform(40, groundY-5, 10);
+    platform(70, groundY-6, 7);
+    platform(82, groundY-9, 7);
+    platform(104, groundY-5, 8);
+    platform(140, groundY-6, 10);
+    platform(154, groundY-9, 7);
+    platform(190, groundY-6, 10);
+    platform(206, groundY-9, 8);
+
+    // stairs / step-ups (Mario style)
+    const step=(x,y,h)=>{
+      for(let i=0;i<h;i++){
+        for(let yy=0; yy<=i; yy++){
+          setTile(x+i, y-yy, 1);
+        }
+      }
+    };
+    step(20, groundY-1, 4);   // toward platform(24, groundY-7)
+    step(76, groundY-1, 5);   // toward platform(82, groundY-9)
+    step(148, groundY-1, 5);  // toward platform(154, groundY-9)
+    step(200, groundY-1, 5);  // toward platform(206, groundY-9)
+
+    // decor beams
+    for(let x=0;x<LEVEL_W;x+=6){ setTile(x,2,2); setTile(x+1,2,2); setTile(x+2,2,2); }
+
+    // end stage
+    for(let x=LEVEL_W-20;x<LEVEL_W-2;x++) setTile(x, groundY-4, 1);
+    for(let y=groundY-9;y<groundY-4;y++) setTile(LEVEL_W-6, y, 1);
+
+    // candies
+    candies.length=0;
+    const spots=[
+      [10,groundY-4],[12,groundY-4],[14,groundY-4],
+      [20,groundY-7],[22,groundY-7],
+      [44,groundY-6],[46,groundY-6],[48,groundY-6],
+      [72,groundY-7],[74,groundY-7],
+      [86,groundY-10],[88,groundY-10],
+      [146,groundY-7],[148,groundY-7],
+      [156,groundY-10],[158,groundY-10],
+      [194,groundY-7],[196,groundY-7],
+      [208,groundY-10],[210,groundY-10],
+      [LEVEL_W-14,groundY-6],[LEVEL_W-12,groundY-6],[LEVEL_W-10,groundY-6]
+    ];
+    for(const [cx,cy] of spots) candies.push({x:cx*TILE+8,y:cy*TILE+8,got:false,bob:Math.random()*6});
+  }
+
+  function populate(){
+    enemies.length=0;
+
+    // snap player to ground at x=4
+    let py=2*TILE;
+    for(let ty=0;ty<LEVEL_H-1;ty++){
+      if(getTile(4,ty)===0 && isSolid(getTile(4,ty+1))){ py=ty*TILE; break; }
+    }
+    Object.assign(player,{x:4*TILE,y:py,vx:0,vy:0,onGround:false,coyote:0,jumpsUsed:0,facing:1,anim:0,hurtT:0,wallDir:0,wallStick:0});
+
+    // enemies
+    const ex=[18,26,36,52,68,76,98,120,144,162,188,200,214];
+    for(const tx of ex){
+      for(let ty=0;ty<LEVEL_H-1;ty++){
+        if(getTile(tx,ty)===0 && isSolid(getTile(tx,ty+1))){
+          enemies.push({x:tx*TILE+8,y:ty*TILE,w:12,h:16,vx:(Math.random()<0.5?-0.5:0.5),vy:0,alive:true,anim:Math.random()*10,stompedT:0});
+          break;
+        }
+      }
+    }
+
+    // henry end
+    const hx=LEVEL_W-10;
+    let hy=0;
+    for(let ty=0;ty<LEVEL_H-1;ty++){
+      if(getTile(hx,ty)===0 && isSolid(getTile(hx,ty+1))){ hy=ty*TILE; break; }
+    }
+    henry.x=hx*TILE+8; henry.y=hy; henry.alive=true; henry.anim=0; henry.mugBob=0;
+
+    cam.x=0; cam.y=0;
+  }
+
+  function moveAndCollide(ent){
+    ent.x += ent.vx;
+    let left=Math.floor(ent.x/TILE), right=Math.floor((ent.x+ent.w-1)/TILE);
+    let top=Math.floor(ent.y/TILE), bottom=Math.floor((ent.y+ent.h-1)/TILE);
+
+    if(ent.vx!==0){
+      const dir=ent.vx>0?1:-1;
+      const tx=dir>0?right:left;
+      for(let ty=top;ty<=bottom;ty++){
+        if(isSolid(getTile(tx,ty))){
+          ent.x = dir>0 ? tx*TILE - ent.w : (tx+1)*TILE;
+          ent.vx=0; break;
+        }
+      }
+    }
+
+    ent.y += ent.vy;
+    left=Math.floor(ent.x/TILE); right=Math.floor((ent.x+ent.w-1)/TILE);
+    top=Math.floor(ent.y/TILE); bottom=Math.floor((ent.y+ent.h-1)/TILE);
+
+    let grounded=false;
+    if(ent.vy!==0){
+      const dir=ent.vy>0?1:-1;
+      const ty=dir>0?bottom:top;
+      for(let tx=left;tx<=right;tx++){
+        if(isSolid(getTile(tx,ty))){
+          ent.y = dir>0 ? ty*TILE - ent.h : (ty+1)*TILE;
+          ent.vy=0; grounded = dir>0; break;
+        }
+      }
+    } else {
+      const underY=Math.floor((ent.y+ent.h)/TILE);
+      for(let tx=left;tx<=right;tx++) if(isSolid(getTile(tx,underY))){ grounded=true; break; }
+    }
+
+    // wall contact detection (player only)
+    if(ent === player){
+      ent.wallDir = 0;
+      const midY = Math.floor((ent.y + ent.h*0.5) / TILE);
+      const leftX = Math.floor((ent.x - 1) / TILE);
+      const rightX = Math.floor((ent.x + ent.w + 1) / TILE);
+      if(isSolid(getTile(leftX, midY))) ent.wallDir = -1;
+      else if(isSolid(getTile(rightX, midY))) ent.wallDir = 1;
+
+      if(ent.wallDir !== 0 && !ent.onGround){
+        ent.wallStick = Math.min(WALL_STICK_FRAMES, ent.wallStick + 1);
+      } else {
+        ent.wallStick = Math.max(0, ent.wallStick - 1);
+      }
+    }
+
+    return grounded;
+  }
+
+  function updateHUD(){
+    candyEl.textContent=String(candy);
+    livesEl.textContent=String(lives);
+    bestEl.textContent=String(best);
+  }
+
+  function takeHit(){
+    if(player.hurtT>0) return;
+    lives--;
+    player.hurtT=60;
+    player.vx = -player.facing*1.2;
+    player.vy = -3.2;
+    if(lives<=0){
+      setState(State.GAMEOVER);
+      best=Math.max(best,candy);
+      localStorage.setItem("mugrun_best_candy", String(best));
+    }
+    updateHUD();
+  }
+
+  function stomp(e){
+    e.alive=false; e.stompedT=12;
+    player.vy = STOMP_BOUNCE;
+    candy++; best=Math.max(best,candy);
+    localStorage.setItem("mugrun_best_candy", String(best));
+    updateHUD();
+  }
+
+  function updatePlayer(){
+    let ax=0;
+    if(keys.left) ax-=MOVE_ACC;
+    if(keys.right) ax+=MOVE_ACC;
+
+    if(ax!==0){
+      player.vx = clamp(player.vx+ax, -MOVE_MAX, MOVE_MAX);
+      player.facing = ax<0 ? -1 : 1;
+      player.anim += 0.24;
+    } else {
+      player.vx *= FRICTION;
+      if(Math.abs(player.vx)<0.02) player.vx=0;
+      player.anim += 0.06;
+    }
+
+    player.vy += GRAV;
+    const grounded = moveAndCollide(player);
+
+    if(grounded){
+      player.onGround=true;
+      player.coyote=COYOTE;
+      player.jumpsUsed=0;
+    } else {
+      player.onGround=false;
+      player.coyote=Math.max(0, player.coyote-1);
+    }
+
+    // Wall slide: slow falling when hugging a wall
+    if(!player.onGround && player.wallDir !== 0 && player.vy > 0.6){
+      player.vy = Math.min(player.vy, 1.2);
+    }
+
+    if(jumpQueued){
+      // 1) Normal jump
+      if(player.onGround || player.coyote>0){
+        player.vy = JUMP_V;
+        player.coyote=0;
+        player.onGround=false;
+        player.jumpsUsed=1;
+      }
+      // 2) Wall jump
+      else if(player.wallDir !== 0 && player.wallStick > 0){
+        player.vy = WALL_JUMP_VY;
+        player.vx = -player.wallDir * WALL_JUMP_VX;
+        player.facing = -player.wallDir;
+        player.wallStick = 0;
+        player.jumpsUsed = 1;
+      }
+      // 3) Double jump
+      else if(player.jumpsUsed<2){
+        player.vy = DOUBLE_JUMP_V;
+        player.jumpsUsed=2;
+      }
+      jumpQueued=false;
+    }
+
+    if(player.hurtT>0) player.hurtT--;
+  }
+
+  function updateEnemies(){
+    for(const e of enemies){
+      if(!e.alive){ if(e.stompedT>0) e.stompedT--; continue; }
+      e.vy += GRAV;
+
+      const aheadX = e.x + (e.vx>0 ? e.w+1 : -2);
+      const footY = e.y + e.h + 1;
+      const axTile = Math.floor(aheadX / TILE);
+      const footTile = Math.floor(footY / TILE);
+
+      let hitWall=false;
+      const wallY0=Math.floor((e.y+2)/TILE);
+      const wallY1=Math.floor((e.y+e.h-2)/TILE);
+      for(let ty=wallY0;ty<=wallY1;ty++){
+        if(isSolid(getTile(axTile,ty))){ hitWall=true; break; }
+      }
+      const noFloorAhead = !isSolid(getTile(axTile, footTile));
+      if(hitWall || noFloorAhead) e.vx *= -1;
+
+      moveAndCollide(e);
+      e.anim += 0.2;
+    }
+  }
+
+  function updateHenry(){
+    if(!henry.alive) return;
+    henry.anim += 0.12;
+    henry.mugBob += 0.10;
+    const leftB=(LEVEL_W-16)*TILE, rightB=(LEVEL_W-8)*TILE;
+    henry.x = clamp(henry.x + Math.sin(henry.mugBob*0.7)*0.35, leftB, rightB);
+  }
+
+  function collectCandy(){
+    for(const c of candies){
+      if(c.got) continue;
+      if(AABB(player.x,player.y,player.w,player.h, c.x-6,c.y-6,12,12)){
+        c.got=true;
+        candy++; best=Math.max(best,candy);
+        localStorage.setItem("mugrun_best_candy", String(best));
+        updateHUD();
+      }
+    }
+  }
+
+  function handleInteractions(){
+    if(state!==State.RUN) return;
+
+    for(const e of enemies){
+      if(!e.alive) continue;
+      if(!AABB(player.x,player.y,player.w,player.h, e.x,e.y,e.w,e.h)) continue;
+      const falling = player.vy > 0.5;
+      const bottom = player.y + player.h;
+      if(falling && (bottom - e.y) < 6) stomp(e);
+      else takeHit();
+    }
+
+    if(henry.alive && AABB(player.x,player.y,player.w,player.h, henry.x,henry.y,henry.w,henry.h)){
+      const falling = player.vy > 0.5;
+      const bottom = player.y + player.h;
+      if(falling && (bottom - henry.y) < 6){
+        henry.alive=false;
+        player.vy = STOMP_BOUNCE;
+        setState(State.WIN);
+      } else takeHit();
+    }
+  }
+
+  function updateCamera(){
+    const levelPxW=LEVEL_W*TILE, levelPxH=LEVEL_H*TILE;
+    const tx = clamp(player.x - PW*0.45, 0, levelPxW - PW);
+    const ty = clamp(player.y - PH*0.65, 0, levelPxH - PH);
+    cam.x += (tx - cam.x) * 0.10;
+    cam.y += (ty - cam.y) * 0.12;
+  }
+
+  function drawBackground(){
+    const grad = g.createLinearGradient(0,0,0,PH);
+    grad.addColorStop(0, "#122a5b");
+    grad.addColorStop(1, "#070a16");
+    g.fillStyle=grad; g.fillRect(0,0,PW,PH);
+    g.fillStyle="rgba(255,255,255,0.06)";
+    for(let i=0;i<8;i++) g.fillRect(0, 10+i*18, PW, 1);
+  }
+
+  function drawTileAt(sx,sy,v){
+    if(v===1){
+      pxr(g,sx,sy,TILE,TILE,PAL.outline);
+      pxr(g,sx+1,sy+1,TILE-2,TILE-2,"#2a375a");
+      pxr(g,sx+1,sy+7,TILE-2,1,"rgba(255,255,255,0.08)");
+      pxr(g,sx+7,sy+1,1,TILE-2,"rgba(255,255,255,0.08)");
+    } else if(v===2){
+      pxr(g,sx,sy+6,TILE,3,PAL.outline);
+      pxr(g,sx+1,sy+7,TILE-2,1,"rgba(122,167,255,0.20)");
+    }
+  }
+
+  function render(){
+    g.clearRect(0,0,PW,PH);
+    drawBackground();
+
+    const startX=Math.floor(cam.x/TILE)-1, endX=Math.floor((cam.x+PW)/TILE)+1;
+    const startY=Math.floor(cam.y/TILE)-1, endY=Math.floor((cam.y+PH)/TILE)+1;
+
+    for(let y=startY;y<=endY;y++){
+      for(let x=startX;x<=endX;x++){
+        const v=getTile(x,y);
+        if(v!==0) drawTileAt(x*TILE-Math.floor(cam.x), y*TILE-Math.floor(cam.y), v);
+      }
+    }
+
+    const phase = performance.now()/600;
+    for(const c of candies){
+      if(c.got) continue;
+      drawCandyIcon(Math.floor(c.x-cam.x), Math.floor(c.y-cam.y), phase + c.bob);
+    }
+
+    for(const e of enemies){
+      if(!e.alive && e.stompedT<=0) continue;
+      const sx=Math.floor(e.x-cam.x)-10, sy=Math.floor(e.y-cam.y)-16;
+      if(e.alive) drawSprite(SPR_STU, sx, sy, Math.floor(e.anim)%6, e.vx<0);
+      else {
+        g.save();
+        g.globalAlpha=0.85;
+        g.translate(sx+16, sy+26);
+        g.scale(1.2,0.55);
+        g.translate(-16,-26);
+        g.drawImage(SPR_STU[0],0,0);
+        g.restore();
+      }
+    }
+
+    if(henry.alive){
+      drawSprite(SPR_HEN, Math.floor(henry.x-cam.x)-10, Math.floor(henry.y-cam.y)-18, Math.floor(henry.anim)%6, false);
+    }
+
+    const fr = (Math.abs(player.vx)>0.15) ? (Math.floor(player.anim)%6) : 0;
+    const flicker = player.hurtT>0 && (((player.hurtT/5)|0)%2===0);
+    drawSprite(SPR_DET, Math.floor(player.x-cam.x)-10, Math.floor(player.y-cam.y)-18, fr, player.facing<0, flicker);
+
+    // overlay text
+    g.save();
+    g.textAlign="center"; g.textBaseline="middle";
+    g.fillStyle="rgba(234,240,255,0.95)";
+    if(state===State.TITLE){
+      g.font="900 28px system-ui"; g.fillText("MUG RUN", PW/2, Math.floor(PH*0.35));
+      g.globalAlpha=0.85; g.font="700 9px system-ui";
+      g.fillText("←/→ move • Space jump • Space again mid-air = double jump • Wall: touch + Space", PW/2, Math.floor(PH*0.35)+22);
+      g.fillText("Press Enter to start", PW/2, Math.floor(PH*0.35)+42);
+    } else if(state===State.WIN){
+      g.font="900 18px system-ui"; g.fillText("YOU GOT THE MUG!", PW/2, Math.floor(PH*0.35));
+      g.globalAlpha=0.85; g.font="700 9px system-ui";
+      g.fillText("Press Enter to restart", PW/2, Math.floor(PH*0.35)+22);
+    } else if(state===State.GAMEOVER){
+      g.font="900 18px system-ui"; g.fillText("DETECTED…", PW/2, Math.floor(PH*0.35));
+      g.globalAlpha=0.85; g.font="700 9px system-ui";
+      g.fillText("Press Enter to restart", PW/2, Math.floor(PH*0.35)+22);
+    }
+    g.restore();
+
+    ctx.clearRect(0,0,W,H);
+    ctx.drawImage(buf, 0,0,PW,PH, 0,0, PW*SCALE, PH*SCALE);
+  }
+
+  function resetRun(){
+    candy=0; lives=3;
+    updateHUD();
+    buildLevel();
+    populate();
+    setState(State.RUN);
+  }
+
+  // Main loop
+  let last=0;
+  function loop(ts){
+    const dt = Math.min(0.05, (ts-last)/1000 || 0);
+    last=ts;
+
+    if(state===State.RUN){
+      updatePlayer();
+      updateEnemies();
+      updateHenry();
+      collectCandy();
+      handleInteractions();
+      updateCamera();
+    }
+
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  // Input handlers
+  window.addEventListener("keydown",(e)=>{
+    if(e.key==="ArrowLeft"){ keys.left=true; e.preventDefault(); }
+    if(e.key==="ArrowRight"){ keys.right=true; e.preventDefault(); }
+    if(e.key===" "){ jumpQueued=true; e.preventDefault(); }
+    if(e.key==="Enter"){
+      if(state===State.TITLE) resetRun();
+      else if(state===State.WIN || state===State.GAMEOVER) resetRun();
+      e.preventDefault();
+    }
+  });
+  window.addEventListener("keyup",(e)=>{
+    if(e.key==="ArrowLeft"){ keys.left=false; e.preventDefault(); }
+    if(e.key==="ArrowRight"){ keys.right=false; e.preventDefault(); }
+  });
+
+  canvas.tabIndex=0;
+  canvas.addEventListener("mousedown",()=>canvas.focus());
+  startBtn.addEventListener("click",()=>{ canvas.focus(); resetRun(); });
+  restartBtn.addEventListener("click",()=>{ canvas.focus(); resetRun(); });
+
+  // Boot
+  try{
+    updateHUD();
+    buildLevel();
+    populate();
+    setState(State.TITLE);
+    requestAnimationFrame(loop);
+  } catch(err){
+    showError(err);
+  }
+});
+</script>
+</body>
+</html>
